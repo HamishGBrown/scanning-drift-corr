@@ -14,6 +14,8 @@
 import numpy as np
 import matplotlib.pyplot as plt
 import sys
+from makeImage import makeImage
+from numpy import newaxis as na
 
 
 def rotation_matrix(theta):
@@ -46,11 +48,14 @@ def SPmerg01linear(scanAngles,images,ReportProgress = 1,paddingScale = 1.25,
     scanOr[0,:,:] = np.stack([np.arange(y) - y/2 for y in images.shape[1:3]]
                                                              ,axis=1)
     
-    #Rotate these coordinates for each other array
+    #Rotate these coordinates for each other array and calculate the
+    #scan direction vectors
+    scanDir = np.zeros((nimages,2))
     for i in range(1,nimages):
-        scanOr[i,:,:] = (rotation_matrix(scanAngles[i]) @ scanOr[0,:,:].T).T
+        scanOr [i,:,:] = (rotation_matrix(scanAngles[i]) @ scanOr[0,:,:].T).T
+        scanDir[i,:]   = [trigfunc(np.deg2rad(scanAngles[i]+45)) 
+                                for trigfunc in [np.cos,np.sin]]
         
-    
     #Remove mid image center
     scanOr += np.asarray(images.shape[1:3])/2
     
@@ -59,31 +64,38 @@ def SPmerg01linear(scanAngles,images,ReportProgress = 1,paddingScale = 1.25,
     
     # fig,ax = plt.subplots()
     # for i in range(nimages):
-        # ax.plot(scanOr[i,:,1],scanOr[i,:,0],label='Image {0}'.format(i))
+        # ax.plot(scanOr[i,:,1],label='Image {0}'.format(i),linestyle='-')
+        # ax.plot(scanOr[i,:,0],label='Image {0}'.format(i),linestyle='--')
     # ax.legend()
     # plt.show()
     # sys.exit()
     #First linear alignment, search over possible linear drift vectors.
     linearSearch_ = linearSearch*nopiy
-    [xDrift,yDrift] = np.meshgrid(linearSearch)
+    [xDrift,yDrift] = np.meshgrid(linearSearch,linearSearch)
     linearSearchScore1 = np.zeros((np.size(linearSearch)))
     inds = np.linspace(-0.5,0.5,nimages)
     N = np.prod(images.shape)
     
     #Work out extra padding in pixels for combined image
-    padding = np.asarray([(1-paddingScale)*y//2 for x in [nopiy,nopix]])
+    padding = np.asarray([(paddingScale-1)*y//2 for y in [nopiy,nopix]]
+                                                         ,dtype=np.int)
     
     #Make 2D hanning filter, it must be zero padded out to size requested
     #by user
     hanning_filt = np.pad(np.hanning(nopiy)[:,np.newaxis]*
-                          np.hanning(nopix)[np.newaxis,:],padding)
+                          np.hanning(nopix)[np.newaxis,:],
+                          padding,mode='constant')
+    outputsize = hanning_filt.shape
+    
     
     for a0 in range(xDrift.shape[0]):
         for a1 in range(xDrift.shape[1]):
             
             #Calculate drift vectors
-            xyShift = [inds*xDrift[a0,a1],inds*yDrfit[a0,a1]]
-
+            xyShift = np.asarray([inds*xDrift[a0,a1],inds*yDrift[a0,a1]])
+            
+            #Generate trial images with linear drift
+            makeImage(images[0,...],scanOr[i]+xyShift[i,na,:],scanDir[i],outputsize)
             
 if __name__=="__main__":
 
